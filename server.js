@@ -1,12 +1,14 @@
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: {
+    origin: "*"
+  }
 });
 
 app.use(express.static("public"));
@@ -14,13 +16,16 @@ app.use(express.static("public"));
 const rooms = new Map();
 
 io.on("connection", socket => {
+
   socket.on("createRoom", name => {
     let code;
+
     do {
       code = String(Math.floor(Math.random() * 9999) + 1);
     } while (rooms.has(code));
 
     rooms.set(code, new Map());
+
     joinRoom(code, name);
     socket.emit("roomCreated", code);
   });
@@ -55,12 +60,14 @@ io.on("connection", socket => {
     });
 
     socket.emit("joinedRoom", code);
+
     io.to(code).emit("players", [...room.values()]);
   }
 
   socket.on("tankMove", data => {
     const code = socket.data.room;
     const room = rooms.get(code);
+
     if (!room || !room.has(socket.id)) return;
 
     const player = room.get(socket.id);
@@ -75,15 +82,20 @@ io.on("connection", socket => {
   socket.on("disconnect", () => {
     const code = socket.data.room;
     const room = rooms.get(code);
+
     if (!room) return;
 
     room.delete(socket.id);
 
-    if (room.size === 0) rooms.delete(code);
-    else io.to(code).emit("players", [...room.values()]);
+    if (room.size === 0) {
+      rooms.delete(code);
+    } else {
+      io.to(code).emit("players", [...room.values()]);
+    }
   });
+
 });
 
-server.listen(process.env.PORT || 3000, () => {
+server.listen(process.env.PORT || 3000, "0.0.0.0", () => {
   console.log("Challenger 2 server started");
 });
