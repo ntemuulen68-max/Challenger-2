@@ -35,13 +35,16 @@ button:active{transform:scale(.96)}
 #msg{position:absolute;top:30%;left:0;right:0;text-align:center;font-size:22px;font-weight:bold;letter-spacing:2px;color:#ffe9a8;text-shadow:0 2px 8px #000;opacity:0;transition:opacity .3s}
 #hurt{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(200,30,20,.75) 100%)}
 #bottom{position:absolute;bottom:18px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 18px}
-.controls{display:flex;gap:9px;pointer-events:auto}
-.ctrl{width:58px;height:58px;border-radius:50%;background:#18271dcc;border:1px solid #9bac83;color:#fff;font-size:23px;touch-action:none;padding:0;width:58px}
-#fire{width:76px;height:76px;background:#9b4b2c;pointer-events:auto;padding:0}
+#joy{position:relative;width:150px;height:150px;border-radius:50%;background:#18271dcc;border:2px solid #9bac83;touch-action:none;pointer-events:auto}
+#joy::before{content:"";position:absolute;left:50%;top:50%;width:2px;height:70%;background:#ffffff22;transform:translate(-50%,-50%)}
+#joy::after{content:"";position:absolute;left:50%;top:50%;width:70%;height:2px;background:#ffffff22;transform:translate(-50%,-50%)}
+#knob{position:absolute;left:50%;top:50%;width:62px;height:62px;border-radius:50%;background:#9bac83cc;border:2px solid #dce9d3;transform:translate(-50%,-50%);pointer-events:none}
+#fire{width:76px;height:76px;border-radius:50%;background:#9b4b2c;border:1px solid #9bac83;color:#fff;font-size:23px;padding:0;touch-action:none;pointer-events:auto}
 #reload{color:#ffb36b}
 @media(max-width:600px){
  #map{width:112px;height:112px}
- .ctrl{width:52px;height:52px}
+ #joy{width:124px;height:124px}
+ #knob{width:50px;height:50px}
  #fire{width:67px;height:67px}
  #hpbar{width:120px}
 }
@@ -85,15 +88,10 @@ button:active{transform:scale(.96)}
  </div>
  <div id="reticle"></div>
  <div id="msg"></div>
- <div id="hint">WASD / ↑↓←→ — хөдөлгөөн · SPACE / ● — буудах</div>
+ <div id="hint">Joystick — хөдөлгөөн · SPACE / ● — буудах</div>
  <div id="bottom">
-  <div class="controls">
-   <button class="ctrl" id="left">↶</button>
-   <button class="ctrl" id="forward">↑</button>
-   <button class="ctrl" id="back">↓</button>
-   <button class="ctrl" id="right">↷</button>
-  </div>
-  <button class="ctrl" id="fire">●</button>
+  <div id="joy"><div id="knob"></div></div>
+  <button id="fire">●</button>
  </div>
 </div>
 
@@ -102,6 +100,8 @@ button:active{transform:scale(.96)}
 const WORLD=220, TANK_R=2.2, ENEMY_COUNT=9, ENEMY_HP=70;
 const SHELL_DMG=35, ENEMY_DMG=12, TANK_SPEED=9, TURN_SPEED=1.7;
 const FIRE_DELAY=.45, RELOAD_TIME=2.5, MAX_AMMO=30;
+const GRASS_N=2600, LEAN_R=3.2;
+const UP=new THREE.Vector3(0,1,0);
 
 /* ============ STATE ============ */
 let scene,camera,renderer,clock,sun,sky;
@@ -111,11 +111,19 @@ let hp=100, ammo=MAX_AMMO, score=0, kills=0;
 let reloadT=0, fireCd=0, hurtT=0, shake=0, msgT=0, hintT=6, lastSend=0;
 const keys={forward:false,back:false,left:false,right:false};
 const remoteTanks=new Map();
-const enemies=[], projectiles=[], particles=[], obstacles=[];
+const enemies=[], projectiles=[], particles=[], obstacles=[], falling=[];
+let grassMesh=null;
+const grassData=[];
 let audioCtx=null;
+const joy={x:0,y:0,id:null,R:1,cx:0,cy:0};
 
 /* ============ SHARED GEOMETRY / MATERIALS ============ */
 let SHELL_GEO, CUBE_GEO, MATS={};
+
+/* ============ TEMPS ============ */
+const _tv=new THREE.Vector3(), _pos=new THREE.Vector3(), _sc=new THREE.Vector3();
+const _tq=new THREE.Quaternion(), _yq=new THREE.Quaternion(), _fq=new THREE.Quaternion();
+const _mtx=new THREE.Matrix4(), _fall=new THREE.Quaternion();
 
 /* ============ UTIL ============ */
 function random(seed){let x=Math.sin(seed*127.1)*43758.5453;return x-Math.floor(x);}
@@ -129,11 +137,15 @@ function angleLerp(a,b,t){
 function angleDiff(a,b){
  return Math.abs(((b-a+Math.PI*3)%(Math.PI*2))-Math.PI);
 }
-function blocked(x,z,r){
+function findObstacle(x,z,r){
  for(const o of obstacles){
-  if(Math.hypot(x-o.x,z-o.z)<o.r+r)return true;
+  if(o.fallen)continue;
+  if(Math.hypot(x-o.x,z-o.z)<o.r+r)return o;
  }
- return false;
+ return null;
+}
+function blocked(x,z,r){
+ return findObstacle(x,z,r)!==null;
 }
 function findFreeSpot(minDist){
  for(let t=0;t<400;t++){
@@ -204,7 +216,7 @@ function joinRoom(){
 /* ============ 3D INIT ============ */
 function init3D(){
  scene=new THREE.Scene();
- scene.fog=new THREE.FogExp2(0xbfe3ff,.0028);
+ scene.fog=new THREE.FogExp2(0xbfe3ff,.0022);
 
  camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,900);
  renderer=new THREE.WebGLRenderer({antialias:true});
@@ -242,7 +254,10 @@ function init3D(){
  scene.add(sun.target);
 
  createSky();
+ createSun();
  createGround();
+ createMountains();
+ createGrass();
  createEnvironment();
  createEnemies();
  animate();
@@ -253,10 +268,10 @@ function createSky(){
  c.width=4;c.height=256;
  const x=c.getContext("2d");
  const gr=x.createLinearGradient(0,0,0,256);
- gr.addColorStop(0,"#1565d8");
- gr.addColorStop(.45,"#3d9bf0");
- gr.addColorStop(.75,"#9fd6ff");
- gr.addColorStop(1,"#d6f0ff");
+ gr.addColorStop(0,"#2f6fd6");
+ gr.addColorStop(.5,"#5fa8f0");
+ gr.addColorStop(.85,"#b6e0ff");
+ gr.addColorStop(1,"#e2f4ff");
  x.fillStyle=gr;x.fillRect(0,0,4,256);
  const tex=new THREE.CanvasTexture(c);
  sky=new THREE.Mesh(
@@ -264,6 +279,21 @@ function createSky(){
   new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide,fog:false})
  );
  scene.add(sky);
+}
+
+function createSun(){
+ const dir=new THREE.Vector3(-65,100,45).normalize().multiplyScalar(400);
+ const core=new THREE.Mesh(
+  new THREE.SphereGeometry(16,20,14),
+  new THREE.MeshBasicMaterial({color:0xfff6d0,fog:false})
+ );
+ core.position.copy(dir);
+ const halo=new THREE.Mesh(
+  new THREE.SphereGeometry(42,20,14),
+  new THREE.MeshBasicMaterial({color:0xfff1b0,transparent:true,opacity:.22,fog:false,depthWrite:false})
+ );
+ halo.position.copy(dir);
+ scene.add(core,halo);
 }
 
 function createGround(){
@@ -276,8 +306,8 @@ function createGround(){
  g.computeVertexNormals();
  const nrm=g.attributes.normal;
  const cols=new Float32Array(pos.count*3);
- const cGrass=new THREE.Color(0x3c8a24);
- const cLight=new THREE.Color(0x7cc048);
+ const cGrass=new THREE.Color(0x4b9a2c);
+ const cLight=new THREE.Color(0x8cc852);
  const cRock=new THREE.Color(0x6a675b);
  const c=new THREE.Color();
  for(let i=0;i<pos.count;i++){
@@ -294,6 +324,83 @@ function createGround(){
  scene.add(ground);
 }
 
+/* ============ MOUNTAINS ============ */
+function createMountains(){
+ const rockMat=new THREE.MeshStandardMaterial({color:0x6f8190,roughness:1,flatShading:true});
+ const snowMat=new THREE.MeshStandardMaterial({color:0xeef4f8,roughness:.9,flatShading:true});
+ for(let i=0;i<48;i++){
+  const a=i/48*Math.PI*2+(random(i+7000)-.5)*.12;
+  const d=345+random(i+7100)*70;
+  const h=70+random(i+7200)*80;
+  const r=h*(.55+random(i+7300)*.35);
+  const x=Math.cos(a)*d, z=Math.sin(a)*d;
+  const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,7,1),rockMat);
+  m.position.set(x,h/2-8,z);
+  scene.add(m);
+  const hs=h*.28;
+  const s=new THREE.Mesh(new THREE.ConeGeometry(r*.3,hs,7,1),snowMat);
+  s.position.set(x,h-8-hs/2,z);
+  scene.add(s);
+ }
+}
+
+/* ============ GRASS ============ */
+function createGrass(){
+ const geo=new THREE.PlaneGeometry(.45,1,1,1);
+ geo.translate(0,.5,0);
+ const gm=new THREE.MeshStandardMaterial({color:0x5fb036,roughness:1,side:THREE.DoubleSide});
+ grassMesh=new THREE.InstancedMesh(geo,gm,GRASS_N);
+ grassMesh.frustumCulled=false;
+ grassMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+ for(let i=0;i<GRASS_N;i++){
+  const x=(Math.random()-.5)*WORLD*1.9, z=(Math.random()-.5)*WORLD*1.9;
+  const ph=Math.random()*6.28;
+  const g={x,z,ry:Math.random()*Math.PI*2,s:.6+Math.random()*.8,
+           bend:0,dx:Math.cos(ph),dz:Math.sin(ph),ph};
+  grassData.push(g);
+  _pos.set(x,getHeight(x,z),z);
+  _yq.setFromAxisAngle(UP,g.ry);
+  _sc.set(g.s,g.s,g.s);
+  _mtx.compose(_pos,_yq,_sc);
+  grassMesh.setMatrixAt(i,_mtx);
+ }
+ grassMesh.instanceMatrix.needsUpdate=true;
+ scene.add(grassMesh);
+}
+
+function updateGrass(dt){
+ const t=clock.elapsedTime;
+ const k=Math.min(1,dt*9);
+ const px=tank?tank.position.x:1e9, pz=tank?tank.position.z:1e9;
+ for(let i=0;i<GRASS_N;i++){
+  const g=grassData[i];
+  let target=0, lx=g.dx, lz=g.dz;
+  const dx=g.x-px, dz=g.z-pz;
+  const d2=dx*dx+dz*dz;
+  if(d2<LEAN_R*LEAN_R){
+   const d=Math.sqrt(d2)||1;
+   target=1-d/LEAN_R;
+   lx=dx/d; lz=dz/d;
+  }
+  g.bend+=(target-g.bend)*k;
+  g.dx+=(lx-g.dx)*k;
+  g.dz+=(lz-g.dz)*k;
+  const len=Math.hypot(g.dx,g.dz)||1;
+  const sway=Math.sin(t*1.8+g.ph)*.12*(1-g.bend*.7);
+  const tilt=g.bend*1.25+sway;
+  const st=Math.sin(tilt), ct=Math.cos(tilt);
+  _tv.set(g.dx/len*st, ct, g.dz/len*st);
+  _tq.setFromUnitVectors(UP,_tv);
+  _yq.setFromAxisAngle(UP,g.ry);
+  _fq.copy(_tq).multiply(_yq);
+  _pos.set(g.x,getHeight(g.x,g.z),g.z);
+  _sc.set(g.s,g.s*(1-g.bend*.45),g.s);
+  _mtx.compose(_pos,_fq,_sc);
+  grassMesh.setMatrixAt(i,_mtx);
+ }
+ grassMesh.instanceMatrix.needsUpdate=true;
+}
+
 /* ============ ENVIRONMENT ============ */
 function createTree(x,z,s){
  const g=new THREE.Group();
@@ -308,7 +415,7 @@ function createTree(x,z,s){
  g.position.set(x,getHeight(x,z),z);
  g.rotation.y=random(x+z)*6;
  scene.add(g);
- obstacles.push({x,z,r:.5*s+.5});
+ obstacles.push({x,z,r:.5*s+.5,tree:g,fallen:false,axis:null,ang:0,base:null});
 }
 
 function createRock(x,z,s){
@@ -346,6 +453,48 @@ function createEnvironment(){
  createBuilding(-32,-25);
  createBuilding(38,42);
  createBuilding(52,-45);
+}
+
+/* ============ TREE FELLING ============ */
+function fellTree(o,fx,fz){
+ if(o.fallen)return;
+ o.fallen=true;
+ let len=Math.hypot(fx,fz);
+ if(len<.001){fx=1;fz=0;len=1;}
+ const nx=fx/len, nz=fz/len;
+ o.axis=new THREE.Vector3(nz,0,-nx);
+ o.ang=0;
+ o.base=o.tree.quaternion.clone();
+ falling.push(o);
+ burst(new THREE.Vector3(o.x,getHeight(o.x,o.z)+3,o.z),10,0x5b4226,5,.7,0,14);
+ burst(new THREE.Vector3(o.x,getHeight(o.x,o.z)+3,o.z),10,0x3f7a2a,4,.8,0,10);
+ playBoom(false,.25);
+}
+
+function knockTrees(x,z,fromX,fromZ){
+ for(const o of obstacles){
+  if(!o.tree||o.fallen)continue;
+  if(Math.hypot(x-o.x,z-o.z)<o.r+TANK_R){
+   fellTree(o,o.x-fromX,o.z-fromZ);
+  }
+ }
+}
+
+function updateTrees(dt){
+ for(let i=falling.length-1;i>=0;i--){
+  const o=falling[i];
+  const target=Math.PI/2;
+  const remain=target-o.ang;
+  o.ang+=Math.min(remain,Math.max(dt*2.2,remain*dt*4));
+  _fall.setFromAxisAngle(o.axis,o.ang);
+  o.tree.quaternion.copy(_fall).multiply(o.base);
+  if(target-o.ang<.002){
+   o.ang=target;
+   _fall.setFromAxisAngle(o.axis,o.ang);
+   o.tree.quaternion.copy(_fall).multiply(o.base);
+   falling.splice(i,1);
+  }
+ }
 }
 
 /* ============ TANK MODEL ============ */
@@ -464,14 +613,11 @@ function startGame(){
 
 function moveTank(dt){
  if(!started||!tank||dead)return;
- let turn=0;
- if(keys.left)turn+=1;
- if(keys.right)turn-=1;
+ const dz=v=>Math.abs(v)<.12?0:v;
+ const turn=THREE.MathUtils.clamp((keys.left?1:0)-(keys.right?1:0)-dz(joy.x),-1,1);
  tank.rotation.y+=turn*TURN_SPEED*dt;
 
- let dir=0;
- if(keys.forward)dir+=1;
- if(keys.back)dir-=1;
+ const dir=THREE.MathUtils.clamp((keys.forward?1:0)-(keys.back?1:0)-dz(joy.y),-1,1);
  const step=dir*TANK_SPEED*dt;
 
  const cx=tank.position.x,cz=tank.position.z;
@@ -479,6 +625,8 @@ function moveTank(dt){
  let nz=cz+Math.cos(tank.rotation.y)*step;
  nx=THREE.MathUtils.clamp(nx,-WORLD+6,WORLD-6);
  nz=THREE.MathUtils.clamp(nz,-WORLD+6,WORLD-6);
+
+ knockTrees(nx,nz,cx,cz);
 
  if(!blocked(nx,nz,TANK_R)){
   tank.position.x=nx;tank.position.z=nz;
@@ -597,7 +745,11 @@ function updateProjectiles(dt){
   const x=p.mesh.position.x,y=p.mesh.position.y,z=p.mesh.position.z;
   let hit=false;
 
-  if(p.life<=0||Math.abs(x)>WORLD||Math.abs(z)>WORLD||y<getHeight(x,z)||blocked(x,z,.2)){
+  const ob=findObstacle(x,z,.2);
+  if(ob){
+   if(ob.tree)fellTree(ob,p.vel.x,p.vel.z);
+   hit=true;
+  }else if(p.life<=0||Math.abs(x)>WORLD||Math.abs(z)>WORLD||y<getHeight(x,z)){
    hit=true;
   }
   if(!hit&&p.owner==="player"){
@@ -838,6 +990,7 @@ function updateMinimap(){
  ctx.fillRect(0,0,S,S);
 
  for(const o of obstacles){
+  if(o.fallen)continue;
   const x=C+o.x*K,y=C+o.z*K;
   ctx.fillStyle=o.r>=6?"#8d8d7e":"#1d3925";
   ctx.beginPath();
@@ -859,85 +1012,4 @@ function updateMinimap(){
   ctx.fill();
  });
  if(tank&&!dead){
-  ctx.save();
-  ctx.translate(C+tank.position.x*K,C+tank.position.z*K);
-  ctx.rotate(-tank.rotation.y);
-  ctx.fillStyle="#8dff72";
-  ctx.beginPath();
-  ctx.moveTo(0,7);ctx.lineTo(-6,-6);ctx.lineTo(6,-6);
-  ctx.closePath();ctx.fill();
-  ctx.restore();
- }
-}
-
-/* ============ MAIN LOOP ============ */
-function animate(){
- requestAnimationFrame(animate);
- const dt=Math.min(clock.getDelta(),.05);
-
- if(started){
-  if(fireHeld)playerFire();
-  if(fireCd>0)fireCd-=dt;
-  if(reloadT>0){
-   reloadT-=dt;
-   if(reloadT<=0){reloadT=0;ammo=MAX_AMMO;}
-  }
-  moveTank(dt);
-  updateEnemies(dt);
-  updateProjectiles(dt);
-  updateCamera(dt);
-  updateSun();
-  updateMinimap();
-  updateHUD();
- }
- updateRemotes(dt);
- updateParticles(dt);
- renderer.render(scene,camera);
-}
-
-/* ============ INPUT ============ */
-function bindButton(id,key){
- const el=document.getElementById(id);
- el.addEventListener("pointerdown",e=>{e.preventDefault();keys[key]=true;});
- ["pointerup","pointerleave","pointercancel"].forEach(ev=>{
-  el.addEventListener(ev,()=>{keys[key]=false;});
- });
-}
-bindButton("forward","forward");
-bindButton("back","back");
-bindButton("left","left");
-bindButton("right","right");
-
-const fireBtn=document.getElementById("fire");
-fireBtn.addEventListener("pointerdown",e=>{e.preventDefault();fireHeld=true;playerFire();});
-["pointerup","pointerleave","pointercancel"].forEach(ev=>{
- fireBtn.addEventListener(ev,()=>{fireHeld=false;});
-});
-
-const KEYMAP={w:"forward",arrowup:"forward",s:"back",arrowdown:"back",a:"left",arrowleft:"left",d:"right",arrowright:"right"};
-window.addEventListener("keydown",e=>{
- const k=e.key.toLowerCase();
- if(KEYMAP[k]){keys[KEYMAP[k]]=true;e.preventDefault();}
- if(k===" "){
-  e.preventDefault();
-  if(!e.repeat){fireHeld=true;playerFire();}
- }
-});
-window.addEventListener("keyup",e=>{
- const k=e.key.toLowerCase();
- if(KEYMAP[k])keys[KEYMAP[k]]=false;
- if(k===" ")fireHeld=false;
-});
-window.addEventListener("blur",()=>{
- for(const k in keys)keys[k]=false;
- fireHeld=false;
-});
-window.addEventListener("resize",()=>{
- if(!camera||!renderer)return;
- camera.aspect=innerWidth/innerHeight;
- camera.updateProjectionMatrix();
- renderer.setSize(innerWidth,innerHeight);
-});
-</script>
-</body>
-</html>
+  ctx.save
