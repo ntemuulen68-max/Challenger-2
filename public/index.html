@@ -1,85 +1,49 @@
-
 <!DOCTYPE html>
 <html lang="mn">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>Challenger 2 Tank Arena</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <style>
-*{box-sizing:border-box}
-body{margin:0;overflow:hidden;background:#101713;color:white;font-family:Arial,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;overflow:hidden;background:#101713;color:#fff;font-family:Arial,sans-serif;user-select:none}
 button,input{font:inherit}
 #game{position:fixed;inset:0}
-#lobby{
- position:fixed;inset:0;z-index:10;
- display:flex;align-items:center;justify-content:center;
- background:linear-gradient(135deg,#101a19ee,#07100bee);
-}
-.panel{
- width:min(90%,390px);padding:28px;border:1px solid #637c66;
- border-radius:18px;background:#14221eeF;
- box-shadow:0 0 45px #000a;text-align:center
-}
+#loading{position:fixed;inset:0;z-index:20;background:#101713;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+#bar{width:230px;height:7px;background:#34443a;border-radius:9px;overflow:hidden}
+#progress{height:100%;width:0;background:#9ab66b;transition:width .05s}
+#lobby{position:fixed;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:linear-gradient(135deg,#101a19ee,#07100bee)}
+.panel{width:min(90%,390px);padding:28px;border:1px solid #637c66;border-radius:18px;background:#14221eee;box-shadow:0 0 45px #000a;text-align:center}
 h1{font-size:27px;letter-spacing:2px;margin:0 0 8px}
 .sub{color:#a9b9aa;margin-bottom:22px}
-input{
- width:100%;padding:14px;margin:7px 0;
- background:#0b1511;color:white;border:1px solid #536a57;
- border-radius:9px;outline:none
-}
-button{
- border:0;border-radius:9px;padding:13px 17px;
- background:#718d46;color:white;font-weight:bold;
- cursor:pointer
-}
+input{width:100%;padding:14px;margin:7px 0;background:#0b1511;color:#fff;border:1px solid #536a57;border-radius:9px;outline:none}
+button{border:0;border-radius:9px;padding:13px 17px;background:#718d46;color:#fff;font-weight:bold;cursor:pointer;width:100%}
 button:active{transform:scale(.96)}
-.actions{display:grid;gap:9px;margin-top:12px}
-.secondary{background:#34463c}
+.secondary{background:#34463c;margin-top:9px}
 #status{font-size:12px;color:#b9cbb7;margin-top:15px}
 #hud{display:none;position:fixed;inset:0;pointer-events:none}
-#top{
- position:absolute;top:12px;left:12px;right:12px;
- display:flex;justify-content:space-between;align-items:flex-start
-}
-.box{
- background:#07110dcc;border:1px solid #73856c;
- padding:10px 13px;border-radius:10px;
- text-shadow:0 1px 3px black
-}
-#map{
- width:145px;height:145px;background:#18251d;
- border:2px solid #b3c49b;border-radius:10px
-}
-#stats{font-size:13px;line-height:1.8}
-#bottom{
- position:absolute;bottom:18px;left:0;right:0;
- display:flex;justify-content:space-between;align-items:end;
- padding:0 18px
-}
+#top{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:flex-start}
+.box{background:#07110dcc;border:1px solid #73856c;padding:10px 13px;border-radius:10px;text-shadow:0 1px 3px #000;font-size:13px;line-height:1.75}
+#hpbar{width:150px;height:8px;background:#2a2a2a;border-radius:6px;overflow:hidden;margin:4px 0 6px}
+#hpfill{height:100%;width:100%;background:linear-gradient(90deg,#c83c2c,#8ed35c);transition:width .15s}
+#map{width:150px;height:150px;background:#334a34;border:2px solid #b3c49b;border-radius:10px}
+#reticle{position:absolute;top:50%;left:50%;width:26px;height:26px;transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.7);border-radius:50%;box-shadow:0 0 0 2px rgba(0,0,0,.35)}
+#reticle::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#ffe4a0;border-radius:50%}
+#hint{position:absolute;top:88px;left:0;right:0;text-align:center;color:#dce9d3;text-shadow:0 2px 5px #000;font-size:13px;transition:opacity 1s}
+#msg{position:absolute;top:30%;left:0;right:0;text-align:center;font-size:22px;font-weight:bold;letter-spacing:2px;color:#ffe9a8;text-shadow:0 2px 8px #000;opacity:0;transition:opacity .3s}
+#hurt{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(200,30,20,.75) 100%)}
+#bottom{position:absolute;bottom:18px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 18px}
 .controls{display:flex;gap:9px;pointer-events:auto}
-.ctrl{
- width:58px;height:58px;border-radius:50%;
- background:#18271dcc;border:1px solid #9bac83;
- font-size:23px;touch-action:none
-}
-#fire{width:76px;height:76px;background:#9b4b2c}
-#hint{
- position:absolute;top:48%;left:50%;transform:translate(-50%,-50%);
- color:#dce9d3;text-shadow:0 2px 5px black;font-size:13px
-}
-#loading{
- position:fixed;inset:0;z-index:20;background:#101713;
- display:flex;flex-direction:column;align-items:center;
- justify-content:center;gap:16px
-}
-#bar{width:230px;height:7px;background:#34443a;border-radius:9px;overflow:hidden}
-#progress{height:100%;width:0;background:#9ab66b}
+.ctrl{width:58px;height:58px;border-radius:50%;background:#18271dcc;border:1px solid #9bac83;color:#fff;font-size:23px;touch-action:none;padding:0;width:58px}
+#fire{width:76px;height:76px;background:#9b4b2c;pointer-events:auto;padding:0}
+#reload{color:#ffb36b}
 @media(max-width:600px){
  #map{width:112px;height:112px}
  .ctrl{width:52px;height:52px}
  #fire{width:67px;height:67px}
+ #hpbar{width:120px}
 }
 </style>
 </head>
@@ -93,31 +57,35 @@ button:active{transform:scale(.96)}
 </div>
 
 <div id="game"></div>
+<div id="hurt"></div>
 
-<div id="lobby" style="display:none">
+<div id="lobby">
  <div class="panel">
   <h1>CHALLENGER 2</h1>
   <div class="sub">TANK ARENA · MULTIPLAYER</div>
   <input id="playerName" maxlength="20" placeholder="Тоглогчийн нэр">
-  <button onclick="createRoom()" style="width:100%">CREATE ROOM</button>
+  <button onclick="createRoom()">CREATE ROOM</button>
   <input id="roomCode" maxlength="4" placeholder="Өрөөний код">
-  <button class="secondary" onclick="joinRoom()" style="width:100%">JOIN ROOM</button>
+  <button class="secondary" onclick="joinRoom()">JOIN ROOM</button>
   <div id="status">Серверт холбогдож байна...</div>
  </div>
 </div>
 
 <div id="hud">
  <div id="top">
-  <div class="box" id="stats">
+  <div class="box">
    <b>CHALLENGER 2</b><br>
-   HP: <span id="hp">100</span>%<br>
-   AMMO: <span id="ammo">30</span><br>
-   SCORE: <span id="score">0</span><br>
+   HP: <span id="hp">100</span>%
+   <div id="hpbar"><div id="hpfill"></div></div>
+   AMMO: <span id="ammo">30</span> <span id="reload"></span><br>
+   SCORE: <span id="score">0</span> · KILLS: <span id="kills">0</span><br>
    ROOM: <span id="roomLabel">----</span>
   </div>
   <canvas id="map" width="250" height="250"></canvas>
  </div>
- <div id="hint">WASD / дэлгэцийн товчлуураар танкаа удирдана</div>
+ <div id="reticle"></div>
+ <div id="msg"></div>
+ <div id="hint">WASD / ↑↓←→ — хөдөлгөөн · SPACE / ● — буудах</div>
  <div id="bottom">
   <div class="controls">
    <button class="ctrl" id="left">↶</button>
@@ -130,19 +98,62 @@ button:active{transform:scale(.96)}
 </div>
 
 <script>
-let scene,camera,renderer,clock;
-let tank,turret,barrel;
-let socket=null,roomCode="",playerName="Player";
-let remoteTanks=new Map();
-let keys={};
-let hp=100,ammo=30,score=0;
-let yaw=0,speed=0;
-let firing=false;
-let effects=[];
-let trees=[];
-let started=false;
-const WORLD=220;
+/* ============ CONSTANTS ============ */
+const WORLD=220, TANK_R=2.2, ENEMY_COUNT=9, ENEMY_HP=70;
+const SHELL_DMG=35, ENEMY_DMG=12, TANK_SPEED=9, TURN_SPEED=1.7;
+const FIRE_DELAY=.45, RELOAD_TIME=2.5, MAX_AMMO=30;
 
+/* ============ STATE ============ */
+let scene,camera,renderer,clock,sun,sky;
+let tank=null, socket=null, roomCode="", playerName="Player";
+let started=false, dead=false, snapCam=true, fireHeld=false;
+let hp=100, ammo=MAX_AMMO, score=0, kills=0;
+let reloadT=0, fireCd=0, hurtT=0, shake=0, msgT=0, hintT=6, lastSend=0;
+const keys={forward:false,back:false,left:false,right:false};
+const remoteTanks=new Map();
+const enemies=[], projectiles=[], particles=[], obstacles=[];
+
+/* ============ SHARED GEOMETRY / MATERIALS ============ */
+let SHELL_GEO, CUBE_GEO, MATS={};
+
+/* ============ UTIL ============ */
+function random(seed){let x=Math.sin(seed*127.1)*43758.5453;return x-Math.floor(x);}
+function getHeight(x,z){
+ return Math.sin(x*.07)*.7+Math.cos(z*.06)*.6+Math.sin((x+z)*.025)*1.1+Math.sin(x*.31+z*.17)*.12;
+}
+function angleLerp(a,b,t){
+ const d=((b-a+Math.PI*3)%(Math.PI*2))-Math.PI;
+ return a+d*Math.min(1,t);
+}
+function angleDiff(a,b){
+ return Math.abs(((b-a+Math.PI*3)%(Math.PI*2))-Math.PI);
+}
+function blocked(x,z,r){
+ for(const o of obstacles){
+  if(Math.hypot(x-o.x,z-o.z)<o.r+r)return true;
+ }
+ return false;
+}
+function findFreeSpot(minDist){
+ for(let t=0;t<400;t++){
+  const x=(Math.random()-.5)*WORLD*1.6, z=(Math.random()-.5)*WORLD*1.6;
+  if(Math.hypot(x,z)<minDist)continue;
+  if(!blocked(x,z,TANK_R+2))return {x,z};
+ }
+ return {x:0,z:0};
+}
+function mat(color,rough=.65,metal=0){
+ return new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal});
+}
+function box(parent,w,h,d,x,y,z,m){
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
+ mesh.position.set(x,y,z);
+ mesh.castShadow=true;mesh.receiveShadow=true;
+ parent.add(mesh);
+ return mesh;
+}
+
+/* ============ LOADING ============ */
 function loading(){
  let p=0;
  const timer=setInterval(()=>{
@@ -160,65 +171,41 @@ function loading(){
 }
 loading();
 
+/* ============ NETWORK ============ */
 function connectServer(){
  if(typeof io==="undefined"){
   document.getElementById("status").textContent="Socket.IO ачаалсангүй. Серверээ шалгана уу.";
   return;
  }
  socket=io();
- socket.on("connect",()=>{
-  document.getElementById("status").textContent="Серверт холбогдлоо ✓";
- });
- socket.on("connect_error",()=>{
-  document.getElementById("status").textContent="Сервертэй холбогдож чадсангүй";
- });
- socket.on("roomCreated",code=>{
-  roomCode=String(code);
-  startGame();
- });
- socket.on("joinedRoom",code=>{
-  roomCode=String(code);
-  startGame();
- });
- socket.on("errorMessage",msg=>{
-  document.getElementById("status").textContent=msg;
- });
- socket.on("players",players=>{
-  players.forEach(p=>{
-   if(p.id!==socket.id) updateRemote(p);
-  });
- });
+ socket.on("connect",()=>{document.getElementById("status").textContent="Серверт холбогдлоо ✓";});
+ socket.on("connect_error",()=>{document.getElementById("status").textContent="Сервертэй холбогдож чадсангүй";});
+ socket.on("roomCreated",code=>{roomCode=String(code);startGame();});
+ socket.on("joinedRoom",code=>{roomCode=String(code);startGame();});
+ socket.on("errorMessage",msg=>{document.getElementById("status").textContent=msg;});
+ socket.on("players",players=>{players.forEach(p=>updateRemote(p));});
  socket.on("tankUpdated",p=>updateRemote(p));
+ socket.on("playerLeft",id=>removeRemote(id));
 }
-
 function createRoom(){
- if(!socket||!socket.connected){
-  alert("Серверт холбогдоогүй байна");
-  return;
- }
+ if(!socket||!socket.connected){alert("Серверт холбогдоогүй байна");return;}
  playerName=document.getElementById("playerName").value.trim()||"Player";
  socket.emit("createRoom",playerName);
 }
 function joinRoom(){
- if(!socket||!socket.connected){
-  alert("Серверт холбогдоогүй байна");
-  return;
- }
+ if(!socket||!socket.connected){alert("Серверт холбогдоогүй байна");return;}
  playerName=document.getElementById("playerName").value.trim()||"Player";
  const code=document.getElementById("roomCode").value.trim();
- if(!/^\d{1,4}$/.test(code)){
-  alert("1-9999 хүртэлх өрөөний код оруулна уу");
-  return;
- }
+ if(!/^\d{1,4}$/.test(code)){alert("1-9999 хүртэлх өрөөний код оруулна уу");return;}
  socket.emit("joinRoom",{code,name:playerName});
 }
 
+/* ============ 3D INIT ============ */
 function init3D(){
  scene=new THREE.Scene();
- scene.background=new THREE.Color(0x9bb3b6);
- scene.fog=new THREE.FogExp2(0x9bb3b6,0.0035);
+ scene.fog=new THREE.FogExp2(0xc9dcdc,.0042);
 
- camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,600);
+ camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,900);
  renderer=new THREE.WebGLRenderer({antialias:true});
  renderer.setSize(innerWidth,innerHeight);
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));
@@ -226,135 +213,130 @@ function init3D(){
  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
  renderer.outputEncoding=THREE.sRGBEncoding;
  renderer.toneMapping=THREE.ACESFilmicToneMapping;
- renderer.toneMappingExposure=1.15;
+ renderer.toneMappingExposure=1.1;
  document.getElementById("game").appendChild(renderer.domElement);
 
  clock=new THREE.Clock();
 
- const hemi=new THREE.HemisphereLight(0xc9e5ff,0x52603b,1.25);
- scene.add(hemi);
+ SHELL_GEO=new THREE.SphereGeometry(.25,10,8);
+ CUBE_GEO=new THREE.BoxGeometry(.35,.35,.35);
+ MATS.trunk=mat(0x59452b);
+ MATS.leaf=[mat(0x344c2d,1),mat(0x405a31,1),mat(0x52683a,1)];
+ MATS.rock=mat(0x77776a,1);
+ MATS.bldg=mat(0x77786b,.9);
+ MATS.roof=mat(0x464b45);
+ MATS.flash=new THREE.MeshBasicMaterial({color:0xffc35a,transparent:true,opacity:.85});
+ MATS.shellP=new THREE.MeshBasicMaterial({color:0xffe08a});
+ MATS.shellE=new THREE.MeshBasicMaterial({color:0xff5a4a});
 
- const sun=new THREE.DirectionalLight(0xffe3b5,2.1);
- sun.position.set(-65,100,45);
+ scene.add(new THREE.HemisphereLight(0xdcefff,0x4f5c36,1.15));
+ sun=new THREE.DirectionalLight(0xffe2b0,2.2);
  sun.castShadow=true;
  sun.shadow.mapSize.set(2048,2048);
- sun.shadow.camera.left=-130;
- sun.shadow.camera.right=130;
- sun.shadow.camera.top=130;
- sun.shadow.camera.bottom=-130;
- sun.shadow.bias=-0.0003;
+ sun.shadow.camera.left=-90;sun.shadow.camera.right=90;
+ sun.shadow.camera.top=90;sun.shadow.camera.bottom=-90;
+ sun.shadow.camera.far=400;
+ sun.shadow.bias=-.0004;
  scene.add(sun);
+ scene.add(sun.target);
 
+ createSky();
  createGround();
  createEnvironment();
- createTank();
  createEnemies();
  animate();
 }
 
+function createSky(){
+ const c=document.createElement("canvas");
+ c.width=4;c.height=256;
+ const x=c.getContext("2d");
+ const gr=x.createLinearGradient(0,0,0,256);
+ gr.addColorStop(0,"#3f78bd");
+ gr.addColorStop(.55,"#a9cde2");
+ gr.addColorStop(.78,"#dce9e6");
+ gr.addColorStop(1,"#c9d7c0");
+ x.fillStyle=gr;x.fillRect(0,0,4,256);
+ const tex=new THREE.CanvasTexture(c);
+ sky=new THREE.Mesh(
+  new THREE.SphereGeometry(480,32,16),
+  new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide,fog:false})
+ );
+ scene.add(sky);
+}
+
 function createGround(){
- const geo=new THREE.PlaneGeometry(WORLD*2,WORLD*2,100,100);
- geo.rotateX(-Math.PI/2);
- const pos=geo.attributes.position;
+ const g=new THREE.PlaneGeometry(WORLD*2,WORLD*2,200,200);
+ g.rotateX(-Math.PI/2);
+ const pos=g.attributes.position;
+ for(let i=0;i<pos.count;i++){
+  pos.setY(i,getHeight(pos.getX(i),pos.getZ(i)));
+ }
+ g.computeVertexNormals();
+ const nrm=g.attributes.normal;
+ const cols=new Float32Array(pos.count*3);
+ const cGrass=new THREE.Color(0x5b7838),cDry=new THREE.Color(0x8c8653),cRock=new THREE.Color(0x6a675b),c=new THREE.Color();
  for(let i=0;i<pos.count;i++){
   const x=pos.getX(i),z=pos.getZ(i);
-  const h=Math.sin(x*.07)*.7+Math.cos(z*.06)*.6+
-          Math.sin((x+z)*.025)*1.1;
-  pos.setY(i,h);
+  const n=(Math.sin(x*.045+z*.02)*Math.cos(z*.05-x*.01)+1)*.5;
+  c.copy(cGrass).lerp(cDry,n*.75);
+  const slope=1-nrm.getY(i);
+  c.lerp(cRock,THREE.MathUtils.clamp((slope-.06)*4,0,.9));
+  cols[i*3]=c.r;cols[i*3+1]=c.g;cols[i*3+2]=c.b;
  }
- geo.computeVertexNormals();
-
- const mat=new THREE.MeshStandardMaterial({
-  color:0x65734b,roughness:1,metalness:0
- });
- const ground=new THREE.Mesh(geo,mat);
+ g.setAttribute("color",new THREE.BufferAttribute(cols,3));
+ const ground=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));
  ground.receiveShadow=true;
  scene.add(ground);
-
- const grid=new THREE.GridHelper(WORLD*2,80,0x60714f,0x71805b);
- grid.position.y=.05;
- grid.material.transparent=true;
- grid.material.opacity=.12;
- scene.add(grid);
 }
 
-function random(seed){
- let x=Math.sin(seed*127.1)*43758.5453;
- return x-Math.floor(x);
-}
-
+/* ============ ENVIRONMENT ============ */
 function createTree(x,z,s){
  const g=new THREE.Group();
- const trunk=new THREE.Mesh(
-  new THREE.CylinderGeometry(.16*s,.25*s,2*s,7),
-  new THREE.MeshStandardMaterial({color:0x59452b})
- );
- trunk.position.y=s;
- trunk.castShadow=true;
- g.add(trunk);
-
+ const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.16*s,.25*s,2*s,7),MATS.trunk);
+ trunk.position.y=s;trunk.castShadow=true;g.add(trunk);
  for(let i=0;i<3;i++){
-  const crown=new THREE.Mesh(
-   new THREE.ConeGeometry((1.1-i*.12)*s,2.2*s,7),
-   new THREE.MeshStandardMaterial({
-    color:[0x344c2d,0x405a31,0x52683a][i],
-    roughness:1
-   })
-  );
+  const crown=new THREE.Mesh(new THREE.ConeGeometry((1.1-i*.12)*s,2.2*s,8),MATS.leaf[i]);
   crown.position.y=(2+i*.85)*s;
-  crown.castShadow=true;
+  crown.castShadow=true;crown.receiveShadow=true;
   g.add(crown);
  }
- g.position.set(x,0,z);
+ g.position.set(x,getHeight(x,z),z);
+ g.rotation.y=random(x+z)*6;
  scene.add(g);
- trees.push(g);
+ obstacles.push({x,z,r:.5*s+.5});
 }
 
 function createRock(x,z,s){
- const rock=new THREE.Mesh(
-  new THREE.DodecahedronGeometry(s,1),
-  new THREE.MeshStandardMaterial({color:0x77776a,roughness:1})
- );
- rock.position.set(x,s*.45,z);
+ const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(s,1),MATS.rock);
+ rock.position.set(x,getHeight(x,z)+s*.3,z);
  rock.rotation.set(random(x)*2,random(z)*3,random(x+z)*2);
  rock.scale.y=.65;
- rock.castShadow=true;
- rock.receiveShadow=true;
+ rock.castShadow=true;rock.receiveShadow=true;
  scene.add(rock);
+ obstacles.push({x,z,r:s*.85});
 }
 
 function createBuilding(x,z){
  const g=new THREE.Group();
- const wall=new THREE.Mesh(
-  new THREE.BoxGeometry(10,5,9),
-  new THREE.MeshStandardMaterial({color:0x77786b,roughness:.9})
- );
- wall.position.y=2.5;
- wall.castShadow=true;
- wall.receiveShadow=true;
- g.add(wall);
-
- const roof=new THREE.Mesh(
-  new THREE.BoxGeometry(11,.8,10),
-  new THREE.MeshStandardMaterial({color:0x464b45})
- );
- roof.position.y=5.3;
- roof.castShadow=true;
- g.add(roof);
- g.position.set(x,0,z);
+ const wall=new THREE.Mesh(new THREE.BoxGeometry(10,5,9),MATS.bldg);
+ wall.position.y=2.5;wall.castShadow=true;wall.receiveShadow=true;g.add(wall);
+ const roof=new THREE.Mesh(new THREE.BoxGeometry(11,.8,10),MATS.roof);
+ roof.position.y=5.3;roof.castShadow=true;g.add(roof);
+ g.position.set(x,getHeight(x,z),z);
  scene.add(g);
+ obstacles.push({x,z,r:6.5});
 }
 
 function createEnvironment(){
- for(let i=0;i<105;i++){
-  let x=(random(i+3)-.5)*WORLD*1.8;
-  let z=(random(i+80)-.5)*WORLD*1.8;
-  if(Math.abs(x)<17&&Math.abs(z)<17)continue;
+ for(let i=0;i<120;i++){
+  const x=(random(i+3)-.5)*WORLD*1.8, z=(random(i+80)-.5)*WORLD*1.8;
+  if(Math.hypot(x,z)<20)continue;
   createTree(x,z,.7+random(i+15)*.8);
  }
- for(let i=0;i<65;i++){
-  let x=(random(i+300)-.5)*WORLD*1.8;
-  let z=(random(i+600)-.5)*WORLD*1.8;
+ for(let i=0;i<70;i++){
+  const x=(random(i+300)-.5)*WORLD*1.8, z=(random(i+600)-.5)*WORLD*1.8;
+  if(Math.hypot(x,z)<20)continue;
   createRock(x,z,.5+random(i+900)*1.5);
  }
  createBuilding(-32,-25);
@@ -362,223 +344,461 @@ function createEnvironment(){
  createBuilding(52,-45);
 }
 
-function material(color,rough=.65,metal=0){
- return new THREE.MeshStandardMaterial({
-  color,roughness:rough,metalness:metal
- });
-}
-
-function box(parent,w,h,d,x,y,z,mat){
- const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
- m.position.set(x,y,z);
- m.castShadow=true;
- m.receiveShadow=true;
- parent.add(m);
- return m;
-}
-
+/* ============ TANK MODEL ============ */
 function createTank(color=0x596747){
  const root=new THREE.Group();
  const hull=new THREE.Group();
  root.add(hull);
 
- const green=material(color,.8);
- const dark=material(0x242a25,.9);
- const metal=material(0x39433a,.55,.45);
- const glass=material(0x182e31,.2,.6);
+ const green=mat(color,.8), dark=mat(0x242a25,.9), metal=mat(0x39433a,.5,.5);
+ const glass=mat(0x182e31,.2,.6), sand=mat(0x6b5c3e,1);
 
  box(hull,3.2,.85,5.2,0,1,0,green);
  box(hull,3.35,.22,5.35,0,.55,0,dark);
+ const glacis=box(hull,3.0,.45,1.6,0,1.35,2.6,green);
+ glacis.rotation.x=.38;
+ box(hull,3.0,.9,.6,0,1.05,-2.7,dark);
 
- // Tracks
+ const wheelGeo=new THREE.CylinderGeometry(.38,.38,.2,16);
+ wheelGeo.rotateZ(Math.PI/2);
+ const wheels=[];
  for(const side of [-1,1]){
-  const track=box(hull,.65,1,5.6,side*1.75,.7,0,dark);
-  track.rotation.z=0;
+  box(hull,.7,1,5.6,side*1.75,.7,0,dark);
+  box(hull,.2,.3,5.6,side*2.1,.28,0,metal);
   for(let i=0;i<7;i++){
-   const wheel=new THREE.Mesh(
-    new THREE.CylinderGeometry(.38,.38,.18,16),
-    metal
-   );
-   wheel.rotation.z=Math.PI/2;
-   wheel.position.set(side*2.06,.55,-2.1+i*.7);
-   wheel.castShadow=true;
-   hull.add(wheel);
+   const w=new THREE.Mesh(wheelGeo,metal);
+   w.position.set(side*2.06,.55,-2.1+i*.7);
+   w.castShadow=true;
+   hull.add(w);
+   wheels.push(w);
   }
-  box(hull,.12,.12,5.5,side*2.1,.15,0,metal);
+  for(let i=0;i<4;i++) box(hull,.12,.6,1,side*1.88,.9,-1.8+i*1.1,green);
  }
 
- // Turret
- turret=new THREE.Group();
+ const turret=new THREE.Group();
  turret.position.set(0,1.65,-.2);
  hull.add(turret);
-
  box(turret,2.65,.72,2.8,0,0,0,green);
  box(turret,1.8,.3,1.5,0,.48,-.1,green);
  box(turret,.65,.22,.7,0,.5,-.9,dark);
-
- // Main barrel
- barrel=new THREE.Group();
- barrel.position.set(0,.1,1.1);
- turret.add(barrel);
-
- const tube=new THREE.Mesh(
-  new THREE.CylinderGeometry(.13,.18,3.3,16),
-  metal
- );
- tube.rotation.x=Math.PI/2;
- tube.position.z=1.6;
- tube.castShadow=true;
- barrel.add(tube);
-
- const muzzle=new THREE.Mesh(
-  new THREE.CylinderGeometry(.19,.19,.35,16),
-  dark
- );
- muzzle.rotation.x=Math.PI/2;
- muzzle.position.z=3.2;
- barrel.add(muzzle);
-
- // Details
- box(turret,.65,.42,.55,-.9,.55,-.2,green);
- box(turret,.65,.42,.55,.9,.55,-.2,green);
+ box(turret,.65,.42,.55,-.9,.55,-.2,sand);
+ box(turret,.65,.42,.55,.9,.55,-.2,sand);
  box(turret,.5,.18,.3,0,.75,-.8,glass);
 
- // Side armor plates
- for(let side of [-1,1]){
-  for(let i=0;i<4;i++){
-   box(hull,.12,.6,1,side*1.88,.9,-1.8+i*1.1,green);
-  }
- }
- root.traverse(o=>{
-  if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
- });
+ const barrel=new THREE.Group();
+ barrel.position.set(0,.1,1.1);
+ turret.add(barrel);
+ const tube=new THREE.Mesh(new THREE.CylinderGeometry(.13,.18,3.3,16),metal);
+ tube.rotation.x=Math.PI/2;tube.position.z=1.6;tube.castShadow=true;
+ barrel.add(tube);
+ const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(.19,.19,.35,16),dark);
+ muzzle.rotation.x=Math.PI/2;muzzle.position.z=3.2;
+ barrel.add(muzzle);
+ const flash=new THREE.Mesh(new THREE.SphereGeometry(.45,10,8),MATS.flash);
+ flash.position.set(0,0,3.9);
+ flash.visible=false;
+ barrel.add(flash);
+
+ root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+ root.userData={barrel,flash,wheels,flashT:0,recoil:0};
  return root;
 }
 
-function createPlayerTank(){
- tank=createTank(0x64764a);
- tank.position.set(0,0,0);
- scene.add(tank);
+function tickTank(t,dt){
+ const u=t.userData;
+ if(u.flashT>0){u.flashT-=dt;if(u.flashT<=0)u.flash.visible=false;}
+ u.recoil=Math.max(0,u.recoil-dt*1.5);
+ u.barrel.position.z=1.1-u.recoil;
+}
+function spinWheels(t,dist){
+ for(const w of t.userData.wheels) w.rotation.x+=dist/.38;
 }
 
-function createEnemies(){
- for(let i=0;i<9;i++){
-  const enemy=createTank(0x713d35);
-  enemy.position.set((random(i+1000)-.5)*120,0,
-                     (random(i+2000)-.5)*120);
-  enemy.rotation.y=random(i+3000)*Math.PI*2;
-  scene.add(enemy);
- }
-}
-
-function updateRemote(p){
- if(!p||!p.id)return;
- let obj=remoteTanks.get(p.id);
- if(!obj){
-  obj=createTank(0x426b83);
-  scene.add(obj);
-  remoteTanks.set(p.id,obj);
- }
- obj.position.set(p.x||0,0,p.z||0);
- obj.rotation.y=p.rotation||0;
-}
-
+/* ============ PLAYER ============ */
 function startGame(){
  document.getElementById("lobby").style.display="none";
  document.getElementById("hud").style.display="block";
  document.getElementById("roomLabel").textContent=roomCode;
- createPlayerTank();
+ const spot=findFreeSpot(0);
+ tank=createTank(0x64764a);
+ tank.position.set(spot.x,getHeight(spot.x,spot.z),spot.z);
+ scene.add(tank);
+ spawnEnemiesIfNeeded();
+ hp=100;ammo=MAX_AMMO;dead=false;snapCam=true;
  started=true;
 }
 
 function moveTank(dt){
- if(!started||!tank)return;
- const turnSpeed=1.7;
- if(keys.left||keys.a)tank.rotation.y+=turnSpeed*dt;
- if(keys.right||keys.d)tank.rotation.y-=turnSpeed*dt;
+ if(!started||!tank||dead)return;
+ let turn=0;
+ if(keys.left)turn+=1;
+ if(keys.right)turn-=1;
+ tank.rotation.y+=turn*TURN_SPEED*dt;
 
- let direction=0;
- if(keys.forward||keys.w)direction=1;
- if(keys.back||keys.s)direction=-1;
+ let dir=0;
+ if(keys.forward)dir+=1;
+ if(keys.back)dir-=1;
+ const step=dir*TANK_SPEED*dt;
 
- const v=direction*9*dt;
- tank.position.x+=Math.sin(tank.rotation.y)*v;
- tank.position.z+=Math.cos(tank.rotation.y)*v;
- tank.position.x=THREE.MathUtils.clamp(tank.position.x,-WORLD+5,WORLD-5);
- tank.position.z=THREE.MathUtils.clamp(tank.position.z,-WORLD+5,WORLD-5);
+ const cx=tank.position.x,cz=tank.position.z;
+ let nx=cx+Math.sin(tank.rotation.y)*step;
+ let nz=cz+Math.cos(tank.rotation.y)*step;
+ nx=THREE.MathUtils.clamp(nx,-WORLD+6,WORLD-6);
+ nz=THREE.MathUtils.clamp(nz,-WORLD+6,WORLD-6);
 
- if(socket&&socket.connected&&roomCode){
-  socket.emit("tankMove",{
-   x:tank.position.x,
-   z:tank.position.z,
-   rotation:tank.rotation.y
-  });
+ if(!blocked(nx,nz,TANK_R)){
+  tank.position.x=nx;tank.position.z=nz;
+ }else if(!blocked(nx,cz,TANK_R)){
+  tank.position.x=nx;
+ }else if(!blocked(cx,nz,TANK_R)){
+  tank.position.z=nz;
+ }
+ tank.position.y=getHeight(tank.position.x,tank.position.z);
+ spinWheels(tank,Math.abs(step));
+ tickTank(tank,dt);
+
+ const now=performance.now();
+ if(socket&&socket.connected&&roomCode&&now-lastSend>90){
+  lastSend=now;
+  socket.emit("tankMove",{x:tank.position.x,z:tank.position.z,rotation:tank.rotation.y});
  }
 }
 
-function shoot(){
- if(!started||ammo<=0)return;
+function playerFire(){
+ if(!started||!tank||dead||fireCd>0||reloadT>0)return;
+ if(ammo<=0){reloadT=RELOAD_TIME;return;}
  ammo--;
- document.getElementById("ammo").textContent=ammo;
-
- const flash=new THREE.PointLight(0xffbd65,5,12);
- flash.position.set(0,0,3.7);
- barrel.add(flash);
- setTimeout(()=>barrel.remove(flash),90);
-
- const glow=new THREE.Mesh(
-  new THREE.SphereGeometry(.22,10,10),
-  new THREE.MeshBasicMaterial({color:0xffc36a})
- );
- const worldPos=new THREE.Vector3();
- barrel.getWorldPosition(worldPos);
- glow.position.copy(worldPos);
- scene.add(glow);
-
- const direction=new THREE.Vector3(0,0,1)
-  .applyQuaternion(tank.quaternion);
- effects.push({mesh:glow,dir:direction,life:1.5});
+ fireCd=FIRE_DELAY;
+ fireFrom(tank,"player");
+ shake=.25;
+ if(ammo<=0)reloadT=RELOAD_TIME;
 }
 
-function updateEffects(dt){
- for(let i=effects.length-1;i>=0;i--){
-  const e=effects[i];
-  e.mesh.position.addScaledVector(e.dir,45*dt);
-  e.life-=dt;
-  if(e.life<=0){
-   scene.remove(e.mesh);
-   e.mesh.geometry.dispose();
-   effects.splice(i,1);
+function fireFrom(t,owner){
+ const u=t.userData;
+ u.flash.visible=true;u.flashT=.06;u.recoil=.3;
+ t.updateMatrixWorld(true);
+ const origin=new THREE.Vector3();
+ u.flash.getWorldPosition(origin);
+ const dir=new THREE.Vector3(0,0,1).applyQuaternion(t.quaternion);
+ const speed=owner==="player"?70:45;
+ const mesh=new THREE.Mesh(SHELL_GEO,owner==="player"?MATS.shellP:MATS.shellE);
+ mesh.position.copy(origin);
+ scene.add(mesh);
+ projectiles.push({
+  mesh,vel:dir.multiplyScalar(speed),life:3,owner,
+  dmg:owner==="player"?SHELL_DMG:ENEMY_DMG
+ });
+ burst(origin,6,0xdedbd0,4,.8,1.8,-1);
+}
+
+/* ============ EFFECTS ============ */
+function burst(pos,count,color,speed,life,grow,gravity){
+ for(let i=0;i<count;i++){
+  const m=new THREE.Mesh(CUBE_GEO,new THREE.MeshBasicMaterial({color,transparent:true,opacity:1}));
+  m.position.copy(pos);
+  m.scale.setScalar(.6+Math.random()*.9);
+  const v=new THREE.Vector3(Math.random()-.5,Math.random()*.9+.2,Math.random()-.5)
+    .normalize().multiplyScalar(speed*(.4+Math.random()*.6));
+  scene.add(m);
+  particles.push({mesh:m,vel:v,life,maxLife:life,grow,gravity});
+ }
+}
+function explode(pos,big=false){
+ burst(pos,big?34:20,0xffa040,big?18:13,1,0,18);
+ burst(pos,big?16:8,0x4a4a45,big?6:4,big?2.4:1.6,2.8,-.4);
+}
+function updateParticles(dt){
+ for(let i=particles.length-1;i>=0;i--){
+  const p=particles[i];
+  p.life-=dt;
+  if(p.life<=0){
+   scene.remove(p.mesh);
+   p.mesh.material.dispose();
+   particles.splice(i,1);
+   continue;
+  }
+  p.vel.y-=p.gravity*dt;
+  p.mesh.position.addScaledVector(p.vel,dt);
+  p.mesh.scale.multiplyScalar(1+p.grow*dt);
+  p.mesh.material.opacity=Math.max(0,p.life/p.maxLife);
+ }
+}
+
+/* ============ PROJECTILES ============ */
+function updateProjectiles(dt){
+ for(let i=projectiles.length-1;i>=0;i--){
+  const p=projectiles[i];
+  p.mesh.position.addScaledVector(p.vel,dt);
+  p.life-=dt;
+  const x=p.mesh.position.x,y=p.mesh.position.y,z=p.mesh.position.z;
+  let hit=false;
+
+  if(p.life<=0||Math.abs(x)>WORLD||Math.abs(z)>WORLD||y<getHeight(x,z)||blocked(x,z,.2)){
+   hit=true;
+  }
+  if(!hit&&p.owner==="player"){
+   for(const e of enemies){
+    if(!e.alive)continue;
+    const ep=e.mesh.position;
+    if(Math.hypot(x-ep.x,z-ep.z)<TANK_R+.3&&y>ep.y-.5&&y<ep.y+3.5){
+     damageEnemy(e,p.dmg);
+     hit=true;
+     break;
+    }
+   }
+  }
+  if(!hit&&p.owner==="enemy"&&tank&&!dead){
+   const tp=tank.position;
+   if(Math.hypot(x-tp.x,z-tp.z)<TANK_R+.3&&y>tp.y-.5&&y<tp.y+3.5){
+    damagePlayer(p.dmg);
+    hit=true;
+   }
+  }
+  if(hit){
+   explode(p.mesh.position.clone(),false);
+   scene.remove(p.mesh);
+   projectiles.splice(i,1);
   }
  }
 }
 
-function updateCamera(){
+/* ============ ENEMIES ============ */
+function createEnemies(){
+ for(let i=0;i<ENEMY_COUNT;i++) enemies.push(makeEnemy(findFreeSpot(50)));
+}
+function spawnEnemiesIfNeeded(){}
+
+function makeEnemy(spot){
+ const mesh=createTank(0x713d35);
+ mesh.position.set(spot.x,getHeight(spot.x,spot.z),spot.z);
+ mesh.rotation.y=Math.random()*Math.PI*2;
+ scene.add(mesh);
+ return {
+  mesh,hp:ENEMY_HP,alive:true,respawn:0,
+  heading:mesh.rotation.y,turnT:0,fireCd:1+Math.random()*2,speed:3.2
+ };
+}
+
+function damageEnemy(e,dmg){
+ e.hp-=dmg;
+ const p=e.mesh.position.clone().add(new THREE.Vector3(0,2,0));
+ burst(p,8,0xffe2a0,6,.5,0,10);
+ if(e.hp<=0){
+  e.alive=false;
+  e.mesh.visible=false;
+  e.respawn=12;
+  kills++;
+  score+=100;
+  explode(e.mesh.position.clone().add(new THREE.Vector3(0,1.5,0)),true);
+  showMsg("ДАЙРЛАА! +100",1.4);
+ }
+}
+
+function updateEnemies(dt){
+ for(const e of enemies){
+  if(!e.alive){
+   e.respawn-=dt;
+   if(e.respawn<=0){
+    const s=findFreeSpot(50);
+    e.hp=ENEMY_HP;e.alive=true;e.mesh.visible=true;
+    e.mesh.position.set(s.x,getHeight(s.x,s.z),s.z);
+   }
+   continue;
+  }
+  const m=e.mesh;
+  const dx=tank.position.x-m.position.x, dz=tank.position.z-m.position.z;
+  const dist=Math.hypot(dx,dz);
+  let move=0;
+  const toPlayer=Math.atan2(dx,dz);
+
+  if(dist<55&&!dead){
+   e.heading=angleLerp(e.heading,toPlayer,dt*2);
+   if(dist>22)move=1;
+  }else{
+   e.turnT-=dt;
+   if(e.turnT<=0){
+    e.heading+=(Math.random()-.5)*2.5;
+    e.turnT=1.5+Math.random()*2;
+   }
+   move=.5;
+  }
+  m.rotation.y=e.heading;
+
+  const step=move*e.speed*dt;
+  const nx=m.position.x+Math.sin(e.heading)*step;
+  const nz=m.position.z+Math.cos(e.heading)*step;
+  if(!blocked(nx,nz,TANK_R)&&Math.abs(nx)<WORLD-6&&Math.abs(nz)<WORLD-6){
+   m.position.x=nx;m.position.z=nz;
+  }else{
+   e.heading+=Math.PI*.5;
+   e.turnT=0;
+  }
+  m.position.y=getHeight(m.position.x,m.position.z);
+  spinWheels(m,Math.abs(step));
+  tickTank(m,dt);
+
+  e.fireCd-=dt;
+  if(dist<40&&!dead&&e.fireCd<=0&&angleDiff(e.heading,toPlayer)<.2){
+   fireFrom(m,"enemy");
+   e.fireCd=1.8+Math.random()*1.6;
+  }
+ }
+}
+
+/* ============ PLAYER DAMAGE ============ */
+function damagePlayer(dmg){
+ if(dead)return;
+ hp=Math.max(0,hp-dmg);
+ hurtT=.35;
+ shake=.4;
+ if(hp<=0){
+  dead=true;
+  explode(tank.position.clone().add(new THREE.Vector3(0,1.5,0)),true);
+  tank.visible=false;
+  showMsg("ТАНК ДЭЛБЭРСЭН",2.5);
+  setTimeout(()=>{
+   const s=findFreeSpot(0);
+   tank.position.set(s.x,getHeight(s.x,s.z),s.z);
+   tank.rotation.y=Math.random()*Math.PI*2;
+   tank.visible=true;
+   hp=100;ammo=MAX_AMMO;reloadT=0;
+   dead=false;snapCam=true;
+  },2500);
+ }
+}
+
+/* ============ REMOTE PLAYERS ============ */
+function updateRemote(p){
+ if(!p||!p.id)return;
+ if(socket&&p.id===socket.id)return;
+ let obj=remoteTanks.get(p.id);
+ if(!obj){
+  obj=createTank(0x426b83);
+  obj.position.set(p.x||0,getHeight(p.x||0,p.z||0),p.z||0);
+  obj.rotation.y=p.rotation||0;
+  obj.userData.tx=p.x||0;obj.userData.tz=p.z||0;obj.userData.tr=p.rotation||0;
+  scene.add(obj);
+  remoteTanks.set(p.id,obj);
+  return;
+ }
+ obj.userData.tx=p.x||0;
+ obj.userData.tz=p.z||0;
+ obj.userData.tr=p.rotation||0;
+}
+function removeRemote(id){
+ const obj=remoteTanks.get(id);
+ if(!obj)return;
+ scene.remove(obj);
+ remremoteDispose(obj);
+ remoteTanks.delete(id);
+}
+function remremoteDispose(obj){
+ obj.traverse(o=>{
+  if(o.isMesh){
+   if(o.geometry)o.geometry.dispose();
+   if(o.material)o.material.dispose();
+  }
+ });
+}
+function updateRemotes(dt){
+ const k=Math.min(1,dt*10);
+ remoteTanks.forEach(obj=>{
+  const u=obj.userData;
+  const dx=u.tx-obj.position.x,dz=u.tz-obj.position.z;
+  obj.position.x+=dx*k;
+  obj.position.z+=dz*k;
+  obj.position.y=getHeight(obj.position.x,obj.position.z);
+  obj.rotation.y=angleLerp(obj.rotation.y,u.tr,k);
+  spinWheels(obj,Math.hypot(dx,dz)*k);
+  tickTank(obj,dt);
+ });
+}
+
+/* ============ CAMERA / SUN ============ */
+function updateCamera(dt){
  if(!tank)return;
- const offset=new THREE.Vector3(0,7,-12);
- offset.applyQuaternion(tank.quaternion);
+ const offset=new THREE.Vector3(0,6.5,-12).applyQuaternion(tank.quaternion);
  const target=tank.position.clone().add(offset);
- camera.position.lerp(target,.09);
+ target.y=Math.max(target.y,tank.position.y+3);
+ if(snapCam){
+  camera.position.copy(target);
+  snapCam=false;
+ }else{
+  camera.position.lerp(target,1-Math.exp(-dt*7));
+ }
+ if(shake>0){
+  camera.position.x+=(Math.random()-.5)*shake*1.4;
+  camera.position.y+=(Math.random()-.5)*shake*1.4;
+  shake=Math.max(0,shake-dt*2);
+ }
  const look=tank.position.clone();
  look.y+=2.2;
  camera.lookAt(look);
 }
+function updateSun(){
+ if(!tank)return;
+ const tx=tank.position.x,tz=tank.position.z;
+ sun.position.set(tx-65,100,tz+45);
+ sun.target.position.set(tx,0,tz);
+}
 
-function updateMap(){
+/* ============ HUD ============ */
+function showMsg(text,t){
+ const el=document.getElementById("msg");
+ el.textContent=text;
+ el.style.opacity=1;
+ msgT=t;
+}
+function updateHUD(){
+ document.getElementById("hp").textContent=Math.ceil(hp);
+ document.getElementById("hpfill").style.width=hp+"%";
+ document.getElementById("ammo").textContent=ammo;
+ document.getElementById("reload").textContent=reloadT>0?"RELOADING…":"";
+ document.getElementById("score").textContent=score;
+ document.getElementById("kills").textContent=kills;
+ if(msgT>0){
+  msgT-=1/60;
+  if(msgT<=0)document.getElementById("msg").style.opacity=0;
+ }
+ if(hintT>0){
+  hintT-=1/60;
+  if(hintT<=0)document.getElementById("hint").style.opacity=0;
+ }
+ document.getElementById("hurt").style.opacity=hurtT>0?Math.min(1,hurtT/.35):0;
+}
+
+function updateMinimap(){
  const c=document.getElementById("map");
  const ctx=c.getContext("2d");
+ const S=250,K=.52,C=S/2;
  ctx.fillStyle="#334a34";
- ctx.fillRect(0,0,250,250);
+ ctx.fillRect(0,0,S,S);
 
- for(const tree of trees){
-  const x=125+tree.position.x*.48;
-  const y=125+tree.position.z*.48;
-  ctx.fillStyle="#1d3925";
-  ctx.fillRect(x,y,3,3);
+ for(const o of obstacles){
+  const x=C+o.x*K,y=C+o.z*K;
+  ctx.fillStyle=o.r>=6?"#8d8d7e":"#1d3925";
+  ctx.beginPath();
+  ctx.arc(x,y,Math.max(1.5,o.r*K),0,Math.PI*2);
+  ctx.fill();
  }
- if(tank){
+
+ for(const e of enemies){
+  if(!e.alive)continue;
+  ctx.fillStyle="#ff5a4a";
+  ctx.beginPath();
+  ctx.arc(C+e.mesh.position.x*K,C+e.mesh.position.z*K,3.5,0,Math.PI*2);
+  ctx.fill();
+ }
+ remoteTanks.forEach(t=>{
+  ctx.fillStyle="#5bbaff";
+  ctx.beginPath();
+  ctx.arc(C+t.position.x*K,C+t.position.z*K,4,0,Math.PI*2);
+  ctx.fill();
+ });
+ if(tank&&!dead){
   ctx.save();
-  ctx.translate(125+tank.position.x*.48,125+tank.position.z*.48);
+  ctx.translate(C+tank.position.x*K,C+tank.position.z*K);
   ctx.rotate(-tank.rotation.y);
   ctx.fillStyle="#8dff72";
   ctx.beginPath();
@@ -586,34 +806,39 @@ function updateMap(){
   ctx.closePath();ctx.fill();
   ctx.restore();
  }
- remoteTanks.forEach(t=>{
-  ctx.fillStyle="#5bbaff";
-  ctx.beginPath();
-  ctx.arc(125+t.position.x*.48,125+t.position.z*.48,4,0,Math.PI*2);
-  ctx.fill();
- });
 }
 
+/* ============ MAIN LOOP ============ */
 function animate(){
  requestAnimationFrame(animate);
  const dt=Math.min(clock.getDelta(),.05);
 
  if(started){
+  if(fireHeld)playerFire();
+  if(fireCd>0)fireCd-=dt;
+  if(reloadT>0){
+   reloadT-=dt;
+   if(reloadT<=0){reloadT=0;ammo=MAX_AMMO;}
+  }
   moveTank(dt);
-  updateCamera();
-  updateEffects(dt);
-  updateMap();
+  updateEnemies(dt);
+  updateProjectiles(dt);
+  updateCamera(dt);
+  updateSun();
+  updateMinimap();
+  updateHUD();
  }
+ updateRemotes(dt);
+ updateParticles(dt);
  renderer.render(scene,camera);
 }
 
+/* ============ INPUT ============ */
 function bindButton(id,key){
  const el=document.getElementById(id);
- el.addEventListener("pointerdown",e=>{
-  e.preventDefault();keys[key]=true;
- });
+ el.addEventListener("pointerdown",e=>{e.preventDefault();keys[key]=true;});
  ["pointerup","pointerleave","pointercancel"].forEach(ev=>{
-  el.addEventListener(ev,()=>keys[key]=false);
+  el.addEventListener(ev,()=>{keys[key]=false;});
  });
 }
 bindButton("forward","forward");
@@ -621,26 +846,30 @@ bindButton("back","back");
 bindButton("left","left");
 bindButton("right","right");
 
-document.getElementById("fire").addEventListener("pointerdown",e=>{
- e.preventDefault();shoot();
+const fireBtn=document.getElementById("fire");
+fireBtn.addEventListener("pointerdown",e=>{e.preventDefault();fireHeld=true;playerFire();});
+["pointerup","pointerleave","pointercancel"].forEach(ev=>{
+ fireBtn.addEventListener(ev,()=>{fireHeld=false;});
 });
 
+const KEYMAP={w:"forward",arrowup:"forward",s:"back",arrowdown:"back",a:"left",arrowleft:"left",d:"right",arrowright:"right"};
 window.addEventListener("keydown",e=>{
  const k=e.key.toLowerCase();
- if(k==="w")keys.w=true;
- if(k==="s")keys.s=true;
- if(k==="a")keys.a=true;
- if(k==="d")keys.d=true;
- if(k===" ")shoot();
+ if(KEYMAP[k]){keys[KEYMAP[k]]=true;e.preventDefault();}
+ if(k===" "){
+  e.preventDefault();
+  if(!e.repeat){fireHeld=true;playerFire();}
+ }
 });
 window.addEventListener("keyup",e=>{
  const k=e.key.toLowerCase();
- if(k==="w")keys.w=false;
- if(k==="s")keys.s=false;
- if(k==="a")keys.a=false;
- if(k==="d")keys.d=false;
+ if(KEYMAP[k])keys[KEYMAP[k]]=false;
+ if(k===" ")fireHeld=false;
 });
-
+window.addEventListener("blur",()=>{
+ for(const k in keys)keys[k]=false;
+ fireHeld=false;
+});
 window.addEventListener("resize",()=>{
  if(!camera||!renderer)return;
  camera.aspect=innerWidth/innerHeight;
