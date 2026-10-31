@@ -1,11 +1,14 @@
-
 {
   "name": "challenger-2-tank-arena",
   "version": "1.0.0",
-  "description": "Challenger 2 Tank Arena Multiplayer Server",
+  "description": "Challenger 2 Tank Arena - multiplayer 3D tank game",
+  "private": true,
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "express": "^4.21.2",
