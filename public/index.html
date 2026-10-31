@@ -112,6 +112,7 @@ let reloadT=0, fireCd=0, hurtT=0, shake=0, msgT=0, hintT=6, lastSend=0;
 const keys={forward:false,back:false,left:false,right:false};
 const remoteTanks=new Map();
 const enemies=[], projectiles=[], particles=[], obstacles=[];
+let audioCtx=null;
 
 /* ============ SHARED GEOMETRY / MATERIALS ============ */
 let SHELL_GEO, CUBE_GEO, MATS={};
@@ -203,7 +204,7 @@ function joinRoom(){
 /* ============ 3D INIT ============ */
 function init3D(){
  scene=new THREE.Scene();
- scene.fog=new THREE.FogExp2(0xc9dcdc,.0042);
+ scene.fog=new THREE.FogExp2(0xbfe3ff,.0028);
 
  camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,900);
  renderer=new THREE.WebGLRenderer({antialias:true});
@@ -252,10 +253,10 @@ function createSky(){
  c.width=4;c.height=256;
  const x=c.getContext("2d");
  const gr=x.createLinearGradient(0,0,0,256);
- gr.addColorStop(0,"#3f78bd");
- gr.addColorStop(.55,"#a9cde2");
- gr.addColorStop(.78,"#dce9e6");
- gr.addColorStop(1,"#c9d7c0");
+ gr.addColorStop(0,"#1565d8");
+ gr.addColorStop(.45,"#3d9bf0");
+ gr.addColorStop(.75,"#9fd6ff");
+ gr.addColorStop(1,"#d6f0ff");
  x.fillStyle=gr;x.fillRect(0,0,4,256);
  const tex=new THREE.CanvasTexture(c);
  sky=new THREE.Mesh(
@@ -275,11 +276,14 @@ function createGround(){
  g.computeVertexNormals();
  const nrm=g.attributes.normal;
  const cols=new Float32Array(pos.count*3);
- const cGrass=new THREE.Color(0x5b7838),cDry=new THREE.Color(0x8c8653),cRock=new THREE.Color(0x6a675b),c=new THREE.Color();
+ const cGrass=new THREE.Color(0x3c8a24);
+ const cLight=new THREE.Color(0x7cc048);
+ const cRock=new THREE.Color(0x6a675b);
+ const c=new THREE.Color();
  for(let i=0;i<pos.count;i++){
   const x=pos.getX(i),z=pos.getZ(i);
   const n=(Math.sin(x*.045+z*.02)*Math.cos(z*.05-x*.01)+1)*.5;
-  c.copy(cGrass).lerp(cDry,n*.75);
+  c.copy(cGrass).lerp(cLight,n*.45);
   const slope=1-nrm.getY(i);
   c.lerp(cRock,THREE.MathUtils.clamp((slope-.06)*4,0,.9));
   cols[i*3]=c.r;cols[i*3+1]=c.g;cols[i*3+2]=c.b;
@@ -394,7 +398,7 @@ function createTank(color=0x596747){
  const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(.19,.19,.35,16),dark);
  muzzle.rotation.x=Math.PI/2;muzzle.position.z=3.2;
  barrel.add(muzzle);
- const flash=new THREE.Mesh(new THREE.SphereGeometry(.45,10,8),MATS.flash);
+ const flash=new THREE.Mesh(new THREE.SphereGeometry(.6,10,8),MATS.flash);
  flash.position.set(0,0,3.9);
  flash.visible=false;
  barrel.add(flash);
@@ -414,6 +418,37 @@ function spinWheels(t,dist){
  for(const w of t.userData.wheels) w.rotation.x+=dist/.38;
 }
 
+/* ============ SOUND ============ */
+function playBoom(big,vol){
+ try{
+  if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  const now=audioCtx.currentTime;
+  const sr=audioCtx.sampleRate;
+  const len=Math.floor(sr*(big?1.1:.6));
+  const buf=audioCtx.createBuffer(1,len,sr);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);
+  const src=audioCtx.createBufferSource();
+  src.buffer=buf;
+  const filt=audioCtx.createBiquadFilter();
+  filt.type="lowpass";
+  filt.frequency.value=big?700:1400;
+  const g=audioCtx.createGain();
+  g.gain.value=vol;
+  src.connect(filt);filt.connect(g);g.connect(audioCtx.destination);
+  src.start(now);
+
+  const o=audioCtx.createOscillator();
+  o.frequency.setValueAtTime(110,now);
+  o.frequency.exponentialRampToValueAtTime(32,now+.35);
+  const og=audioCtx.createGain();
+  og.gain.setValueAtTime(.7*vol,now);
+  og.gain.exponentialRampToValueAtTime(.001,now+.4);
+  o.connect(og);og.connect(audioCtx.destination);
+  o.start(now);o.stop(now+.45);
+ }catch(e){}
+}
+
 /* ============ PLAYER ============ */
 function startGame(){
  document.getElementById("lobby").style.display="none";
@@ -423,7 +458,6 @@ function startGame(){
  tank=createTank(0x64764a);
  tank.position.set(spot.x,getHeight(spot.x,spot.z),spot.z);
  scene.add(tank);
- spawnEnemiesIfNeeded();
  hp=100;ammo=MAX_AMMO;dead=false;snapCam=true;
  started=true;
 }
@@ -474,9 +508,36 @@ function playerFire(){
  if(ammo<=0)reloadT=RELOAD_TIME;
 }
 
+function muzzleBlast(t){
+ const u=t.userData;
+ const origin=new THREE.Vector3();
+ u.flash.getWorldPosition(origin);
+ const dir=new THREE.Vector3(0,0,1).applyQuaternion(t.quaternion);
+
+ for(let i=0;i<16;i++){
+  const col=i%3===0?0xfff2b0:(i%2?0xffa030:0xff5a10);
+  const m=new THREE.Mesh(CUBE_GEO,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:1}));
+  m.position.copy(origin);
+  const v=dir.clone().multiplyScalar(16+Math.random()*14).add(
+   new THREE.Vector3((Math.random()-.5)*5,(Math.random()-.5)*5,(Math.random()-.5)*5));
+  scene.add(m);
+  particles.push({mesh:m,vel:v,life:.22+Math.random()*.2,maxLife:.42,grow:5,gravity:0});
+ }
+
+ for(let i=0;i<8;i++){
+  const m=new THREE.Mesh(CUBE_GEO,new THREE.MeshBasicMaterial({color:0x8e8e8a,transparent:true,opacity:.75}));
+  m.position.copy(origin);
+  m.position.addScaledVector(dir,1.5);
+  const v=dir.clone().multiplyScalar(4+Math.random()*3).add(
+   new THREE.Vector3((Math.random()-.5)*1.5,1.2+Math.random()*1.2,(Math.random()-.5)*1.5));
+  scene.add(m);
+  particles.push({mesh:m,vel:v,life:1.8,maxLife:1.8,grow:1.4,gravity:-.5});
+ }
+}
+
 function fireFrom(t,owner){
  const u=t.userData;
- u.flash.visible=true;u.flashT=.06;u.recoil=.3;
+ u.flash.visible=true;u.flashT=.08;u.recoil=.35;
  t.updateMatrixWorld(true);
  const origin=new THREE.Vector3();
  u.flash.getWorldPosition(origin);
@@ -486,10 +547,11 @@ function fireFrom(t,owner){
  mesh.position.copy(origin);
  scene.add(mesh);
  projectiles.push({
-  mesh,vel:dir.multiplyScalar(speed),life:3,owner,
+  mesh,vel:dir.clone().multiplyScalar(speed),life:3,owner,
   dmg:owner==="player"?SHELL_DMG:ENEMY_DMG
  });
- burst(origin,6,0xdedbd0,4,.8,1.8,-1);
+ muzzleBlast(t);
+ playBoom(owner==="player",owner==="player"?1:.35);
 }
 
 /* ============ EFFECTS ============ */
@@ -507,6 +569,7 @@ function burst(pos,count,color,speed,life,grow,gravity){
 function explode(pos,big=false){
  burst(pos,big?34:20,0xffa040,big?18:13,1,0,18);
  burst(pos,big?16:8,0x4a4a45,big?6:4,big?2.4:1.6,2.8,-.4);
+ playBoom(big,big?.9:.5);
 }
 function updateParticles(dt){
  for(let i=particles.length-1;i>=0;i--){
@@ -567,7 +630,6 @@ function updateProjectiles(dt){
 function createEnemies(){
  for(let i=0;i<ENEMY_COUNT;i++) enemies.push(makeEnemy(findFreeSpot(50)));
 }
-function spawnEnemiesIfNeeded(){}
 
 function makeEnemy(spot){
  const mesh=createTank(0x713d35);
@@ -686,20 +748,20 @@ function updateRemote(p){
  obj.userData.tz=p.z||0;
  obj.userData.tr=p.rotation||0;
 }
+function disposeTank(obj){
+ obj.traverse(o=>{
+  if(o.isMesh){
+   if(o.geometry)o.geometry.dispose();
+   if(o.material&&!Array.isArray(o.material)&&!Object.values(MATS).includes(o.material))o.material.dispose();
+  }
+ });
+}
 function removeRemote(id){
  const obj=remoteTanks.get(id);
  if(!obj)return;
  scene.remove(obj);
- remremoteDispose(obj);
+ disposeTank(obj);
  remoteTanks.delete(id);
-}
-function remremoteDispose(obj){
- obj.traverse(o=>{
-  if(o.isMesh){
-   if(o.geometry)o.geometry.dispose();
-   if(o.material)o.material.dispose();
-  }
- });
 }
 function updateRemotes(dt){
  const k=Math.min(1,dt*10);
